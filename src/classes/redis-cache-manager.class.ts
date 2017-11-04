@@ -76,7 +76,13 @@ export class RedisCacheManager {
         this.keyListeners[redisKey] = listener;
     }
 
-    hmSetAll<T>(key: string, data: T[], identifier: () => string | number): Promise<RedisClient> {
+    keysChange<T>(key: string, listener: (data: T) => void): void {
+        const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
+        this.subscriber.psubscribe(redisKey);
+        this.keyListeners[redisKey] = listener;
+    }
+
+    hmSetAll<T>(key: string, data: T[], identifier: (item: T) => string | number): Promise<RedisClient> {
         return new Promise((resolve, reject) => {
             if (!Array.isArray(data)) {
                 return reject('Data passed to hmSetAll must be an array')
@@ -85,7 +91,7 @@ export class RedisCacheManager {
             const multi = this.client.multi();
             const savedKeys = {};
             for (const item of data) {
-                const itemKey = `${redisKey}:${identifier()}`;
+                const itemKey = `${redisKey}:${identifier(item)}`;
                 savedKeys[itemKey] = itemKey;
                 const simplified = Parser.stringfyObjectProps(item);
                 multi.hmset(itemKey, simplified);
@@ -96,9 +102,24 @@ export class RedisCacheManager {
                     return reject(err.message);
                 }
                 resolve(this.client);
+                this.client.publish(key, 'message');
             });
         });
+    }
 
+    hmSetOne<T>(key: string, identifier: (item: T) => string | number, obj: T): Promise<RedisClient> {
+        return new Promise((resolve, reject) => {
+            const redisKey = key.split(':')[0] === this.namespace ? `${key}:${identifier(obj)}` : this.keyGen(key, `${identifier(obj)}`);
+            const itemKey = `${redisKey}:${identifier(obj)}`;
+            const simplified = Parser.stringfyObjectProps(obj);
+            this.client.hmset(itemKey, simplified, (err, saved) => {
+                if (err) {
+                    reject(err.message);
+                }
+                resolve(this.client);
+                this.client.publish(redisKey, 'message');
+            });
+        });
     }
 
     hmGetAll<T>(key: string, data: T[]): Promise<T[]> {
