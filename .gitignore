@@ -1,4 +1,6 @@
 dist
 src/**/*.js
 node_modules
-.idea
+.idea/*
+
+package-lock.json
