@@ -43,6 +43,13 @@ rcm.keyChange('my-key', (myNewlySetData) => {
 });
 ```
 
+### Quit/Unref
+
+```javascript
+// You can use quit/unref to quit or unref client and sub subscriber
+rcm.quit();
+rcm.unref();
+```
 *Listeners on same key will override one another (listeners in set and keyChange)*
 
 ## Roadmap
