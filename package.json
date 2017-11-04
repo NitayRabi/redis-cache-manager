@@ -1,0 +1,25 @@
+{
+  "name": "redis-cache-manager",
+  "version": "1.0.0",
+  "repository": "https://github.com/NitayRabi/redis-cache-manager.git",
+  "description": "Cache data using Redis with pub/sub implementation",
+  "main": "./dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "redis",
+    "cache",
+    "pub",
+    "sub"
+  ],
+  "author": "Nitay Rabinovich",
+  "license": "ISC",
+  "dependencies": {
+    "redis": "^2.8.0"
+  },
+  "devDependencies": {
+    "@types/redis": "^2.8.1"
+  },
+  "types": "dist/index.d.ts"
+}
