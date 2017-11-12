@@ -11,7 +11,7 @@ export class Parser {
     }
 
     static parseObjectProps(obj): any {
-        for (const propName of obj) {
+        for (const propName in obj) {
             if (obj.hasOwnProperty(propName)) {
                 const prop = obj[propName];
                 obj[propName] = JSON.parse(prop);

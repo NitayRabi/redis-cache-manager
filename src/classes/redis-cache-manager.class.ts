@@ -6,7 +6,7 @@ export interface RCMOptions extends ClientOpts {
     namespace?: string;
 }
 
-export class RedisCacheManager {
+export default class RedisCacheManager {
 
     private namespace: string;
     private client: RedisClient;
@@ -32,16 +32,16 @@ export class RedisCacheManager {
 
     private async handleMessageEvent(key: string, message: string): Promise<void> {
         const data = await this.get(key);
-        console.log(key);
         if (this.keyListeners[key]) {
             this.keyListeners[key](data);
         }
     };
 
     private async handlePmessageEvent(pattern: string, key: string, message: string): Promise<void> {
-        const data = await this.get(key);
-        if (this.keyListeners[key]) {
-            this.keyListeners[key](data);
+        const data = await this.hmGetOne(key);
+        const callbackKey = pattern.substring(0, pattern.lastIndexOf(':'));
+        if (this.keyListeners[callbackKey]) {
+            this.keyListeners[callbackKey](data);
         }
     };
 
@@ -53,7 +53,6 @@ export class RedisCacheManager {
         return this.setItem(redisKey, cachedItem, listener)
             .then((client: RedisClient) => {
                 this.client.publish(redisKey, 'message');
-                this.client.publish(redisKey, 'pmessage');
                 return client;
             });
     }
@@ -80,7 +79,7 @@ export class RedisCacheManager {
 
     keysChange<T>(key: string, listener: (data: T) => void): void {
         const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
-        this.subscriber.psubscribe(`${redisKey}*`);
+        this.subscriber.psubscribe(`${redisKey}:*`);
         this.keyListeners[redisKey] = listener;
     }
 
@@ -120,7 +119,6 @@ export class RedisCacheManager {
                 }
                 resolve(this.client);
                 this.client.publish(redisKey, 'message');
-                this.client.publish(redisKey, 'pmessage');
             });
         });
     }
@@ -146,6 +144,20 @@ export class RedisCacheManager {
                     }
                     resolve(parsed);
                 })
+            });
+        });
+    }
+
+    hmGetOne<T>(key: string): Promise<T[]> {
+        return new Promise((resolve, reject) => {
+            const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
+            this.client.hgetall(redisKey, async (err, item) => {
+                if (err) {
+                    reject(err.message);
+                    return;
+                }
+                const simplified = await Parser.parseObjectProps(item);
+                resolve(simplified);
             });
         });
     }
