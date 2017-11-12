@@ -1,5 +1,6 @@
 import * as redis from 'redis';
 import { ClientOpts, RedisClient } from 'redis';
+import { Parser } from '../services/parsing.service';
 
 export interface RCMOptions extends ClientOpts {
     namespace?: string;
@@ -55,22 +56,6 @@ export class RedisCacheManager {
             });
     }
 
-    private setItem<T>(key: string, value: string, listener?: (data: T) => void) {
-        return new Promise((resolve, reject) => {
-            this.client.set(key, value, (err, saved) => {
-                if (err) {
-                    reject(err.message);
-                    return;
-                }
-                if (listener) {
-                    this.subscriber.subscribe(key);
-                    this.keyListeners[key] = listener;
-                }
-                resolve(this.client);
-            })
-        });
-    }
-
     get<T>(key: string): Promise<T> {
         const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
         return new Promise((resolve, reject) => {
@@ -91,6 +76,77 @@ export class RedisCacheManager {
         this.keyListeners[redisKey] = listener;
     }
 
+    keysChange<T>(key: string, listener: (data: T) => void): void {
+        const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
+        this.subscriber.psubscribe(redisKey);
+        this.keyListeners[redisKey] = listener;
+    }
+
+    hmSetAll<T>(key: string, data: T[], identifier: (item: T) => string | number): Promise<RedisClient> {
+        return new Promise((resolve, reject) => {
+            if (!Array.isArray(data)) {
+                return reject('Data passed to hmSetAll must be an array')
+            }
+            const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
+            const multi = this.client.multi();
+            const savedKeys = {};
+            for (const item of data) {
+                const itemKey = `${redisKey}:${identifier(item)}`;
+                savedKeys[itemKey] = itemKey;
+                const simplified = Parser.stringfyObjectProps(item);
+                multi.hmset(itemKey, simplified);
+            }
+            multi.hmset(key, savedKeys);
+            multi.exec((err, saved) => {
+                if (err) {
+                    return reject(err.message);
+                }
+                resolve(this.client);
+                this.client.publish(key, 'message');
+            });
+        });
+    }
+
+    hmSetOne<T>(key: string, identifier: (item: T) => string | number, obj: T): Promise<RedisClient> {
+        return new Promise((resolve, reject) => {
+            const redisKey = key.split(':')[0] === this.namespace ? `${key}:${identifier(obj)}` : this.keyGen(key, `${identifier(obj)}`);
+            const itemKey = `${redisKey}:${identifier(obj)}`;
+            const simplified = Parser.stringfyObjectProps(obj);
+            this.client.hmset(itemKey, simplified, (err, saved) => {
+                if (err) {
+                    reject(err.message);
+                }
+                resolve(this.client);
+                this.client.publish(redisKey, 'message');
+            });
+        });
+    }
+
+    hmGetAll<T>(key: string, data: T[]): Promise<T[]> {
+        return new Promise((resolve, reject) => {
+            const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
+            const multi = this.client.multi();
+            const parsed = [];
+            this.client.hmget(redisKey, (err, data) => {
+                if (err) {
+                    return reject(err.message);
+                }
+                for (const key of data) {
+                    multi.hmget(key);
+                }
+                multi.exec((err, data) => {
+                    if (err) {
+                        reject(err.message);
+                    }
+                    for (const item of data) {
+                        parsed.push(Parser.parseObjectProps(item));
+                    }
+                    resolve(parsed);
+                })
+            });
+        });
+    }
+
     quit() {
         this.client.quit();
         this.subscriber.quit();
@@ -101,4 +157,19 @@ export class RedisCacheManager {
         this.subscriber.unref();
     }
 
+    private setItem<T>(key: string, value: string, listener?: (data: T) => void) {
+        return new Promise((resolve, reject) => {
+            this.client.set(key, value, (err, saved) => {
+                if (err) {
+                    reject(err.message);
+                    return;
+                }
+                if (listener) {
+                    this.subscriber.subscribe(key);
+                    this.keyListeners[key] = listener;
+                }
+                resolve(this.client);
+            })
+        });
+    }
 }
