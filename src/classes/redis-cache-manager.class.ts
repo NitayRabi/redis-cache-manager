@@ -32,6 +32,7 @@ export class RedisCacheManager {
 
     private async handleMessageEvent(key: string, message: string): Promise<void> {
         const data = await this.get(key);
+        console.log(key);
         if (this.keyListeners[key]) {
             this.keyListeners[key](data);
         }
@@ -52,6 +53,7 @@ export class RedisCacheManager {
         return this.setItem(redisKey, cachedItem, listener)
             .then((client: RedisClient) => {
                 this.client.publish(redisKey, 'message');
+                this.client.publish(redisKey, 'pmessage');
                 return client;
             });
     }
@@ -78,7 +80,7 @@ export class RedisCacheManager {
 
     keysChange<T>(key: string, listener: (data: T) => void): void {
         const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
-        this.subscriber.psubscribe(redisKey);
+        this.subscriber.psubscribe(`${redisKey}*`);
         this.keyListeners[redisKey] = listener;
     }
 
@@ -118,6 +120,7 @@ export class RedisCacheManager {
                 }
                 resolve(this.client);
                 this.client.publish(redisKey, 'message');
+                this.client.publish(redisKey, 'pmessage');
             });
         });
     }
