@@ -8,10 +8,10 @@ run `npm install redis-cache-manager --save`
 ### Init
 
 ```javascript
-import RedisCacheManager from 'redis-cache-manager';
+import { RedisCacheManager } from 'redis-cache-manager';
 
 // Constructor expects same config as redis client type (with redis defaults) with namespace property added for scoping
-const rcm = new RCM({namespace: 'my-app-name'});
+const rcm = new RedisCacheManager({namespace: 'my-app-name'});
 ```
 
 ### Set

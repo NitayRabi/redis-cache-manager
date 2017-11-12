@@ -6,7 +6,7 @@ export interface RCMOptions extends ClientOpts {
     namespace?: string;
 }
 
-export default class RedisCacheManager {
+export class RedisCacheManager {
 
     private namespace: string;
     private client: RedisClient;
