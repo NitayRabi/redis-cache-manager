@@ -123,7 +123,7 @@ export class RedisCacheManager {
         });
     }
 
-    hmGetAll<T>(key: string, data: T[]): Promise<T[]> {
+    hmGetAll<T>(key: string): Promise<T[]> {
         return new Promise((resolve, reject) => {
             const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
             const multi = this.client.multi();
