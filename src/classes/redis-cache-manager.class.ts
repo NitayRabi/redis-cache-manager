@@ -111,9 +111,8 @@ export class RedisCacheManager {
     hmSetOne<T>(key: string, identifier: (item: T) => string | number, obj: T): Promise<RedisClient> {
         return new Promise((resolve, reject) => {
             const redisKey = key.split(':')[0] === this.namespace ? `${key}:${identifier(obj)}` : this.keyGen(key, `${identifier(obj)}`);
-            const itemKey = `${redisKey}:${identifier(obj)}`;
             const simplified = Parser.stringfyObjectProps(obj);
-            this.client.hmset(itemKey, simplified, (err, saved) => {
+            this.client.hmset(redisKey, simplified, (err, saved) => {
                 if (err) {
                     reject(err.message);
                 }
