@@ -161,6 +161,24 @@ export class RedisCacheManager {
         });
     }
 
+    clear(key: string): Promise<null> {
+        const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
+        const multi = this.client.multi();
+        return new Promise((resolve, reject) => {
+            this.client.keys(`${redisKey}:*`, (err, keys) => {
+                if (err) {
+                    return reject(err);
+                }
+                this.client.del(keys, (delErr, count) => {
+                    if (delErr) {
+                        return reject(delErr);
+                    }
+                    resolve();
+                })
+            });
+        });
+    }
+
     quit() {
         this.client.quit();
         this.subscriber.quit();
