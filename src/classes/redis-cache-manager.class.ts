@@ -9,7 +9,7 @@ export interface RCMOptions extends ClientOpts {
 export class RedisCacheManager {
 
     private namespace: string;
-    private client: RedisClient;
+    client: RedisClient;
     subscriber: RedisClient;
     private keyListeners: {[key: string]: Function} = {};
 
@@ -169,6 +169,7 @@ export class RedisCacheManager {
                 if (err) {
                     return reject(err);
                 }
+                keys.push(redisKey);
                 this.client.del(keys, (delErr, count) => {
                     if (delErr) {
                         return reject(delErr);
