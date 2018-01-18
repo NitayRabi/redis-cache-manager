@@ -95,6 +95,27 @@ export class RedisCacheManager {
         })
     }
 
+    getByIds<T>(key: string, ids: string[]): Promise<T[]> {
+        const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
+        const multi = this.client.multi();
+        return new Promise((resolve, reject) => {
+                for (const id of ids) {
+                    multi.get(`${redisKey}:${id}`, (err, value) => {
+                        if (err) {
+                            return reject(err);
+                        }
+                        return JSON.parse(value);
+                    })
+                }
+                multi.exec((err, values) => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    resolve(values);
+                })
+        })
+    }
+
     setAll<T>(key: string, data: T[], identifier: (item: T) => string | number): Promise<RedisClient> {
         return new Promise((resolve, reject) => {
             if (!Array.isArray(data)) {
@@ -194,6 +215,27 @@ export class RedisCacheManager {
                     resolve(data);
                 })
             });
+        });
+    }
+
+    hmGetByIds<T>(key: string, ids: string[]): Promise<T[]> {
+        return new Promise((resolve, reject) => {
+            const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
+            const multi = this.client.multi();
+            for (const id of ids) {
+                multi.hmget(`${redisKey}:${id}`, (err, item) => {
+                    if (err) {
+                        return err;
+                    }
+                    return Parser.parseObjectProps(item);
+                });
+            }
+            multi.exec((err, data) => {
+                if (err) {
+                    reject(err.message);
+                }
+                resolve(data);
+            })
         });
     }
 
