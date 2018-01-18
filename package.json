@@ -1,6 +1,6 @@
 {
   "name": "redis-cache-manager",
-  "version": "1.0.53",
+  "version": "1.0.54",
   "repository": "https://github.com/NitayRabi/redis-cache-manager.git",
   "description": "Cache data using Redis with pub/sub implementation",
   "main": "./dist/index.js",
