@@ -82,14 +82,18 @@ export class RedisCacheManager {
                         if (err) {
                             return reject(err);
                         }
-                        return JSON.parse(value);
+                        return value;
                     })
                 }
                 multi.exec((err, values) => {
                     if (err) {
                         return reject(err);
                     }
-                    resolve(values);
+                    const parsed = [];
+                    for (const value of values) {
+                        parsed.push(JSON.parse(value));
+                    }
+                    resolve(parsed);
                 })
             })
         })
@@ -227,14 +231,18 @@ export class RedisCacheManager {
                     if (err) {
                         return err;
                     }
-                    return Parser.parseObjectProps(item);
+                    return item;
                 });
             }
-            multi.exec((err, data) => {
+            multi.exec((err, values) => {
                 if (err) {
                     reject(err.message);
                 }
-                resolve(data);
+                const parsed = [];
+                for (const value of values) {
+                    parsed.push(Parser.parseObjectProps(value));
+                }
+                resolve(parsed);
             })
         });
     }
