@@ -9,7 +9,7 @@ export interface RCMOptions extends ClientOpts {
 export class RedisCacheManager {
 
     private namespace: string;
-    private client: RedisClient;
+    client: RedisClient;
     subscriber: RedisClient;
     private keyListeners: {[key: string]: Function} = {};
 
@@ -71,6 +71,55 @@ export class RedisCacheManager {
         })
     }
 
+    getAll<T>(key: string): Promise<T[]> {
+        const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
+        const pattern = `${redisKey}*`;
+        const multi = this.client.multi();
+        return new Promise((resolve, reject) => {
+            this.client.keys(pattern, (error, keys: string[]) => {
+                for (const singleKey of keys) {
+                    multi.get(singleKey, (err, value) => {
+                        if (err) {
+                            return reject(err);
+                        }
+                        return JSON.parse(value);
+                    })
+                }
+                multi.exec((err, values) => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    resolve(values);
+                })
+            })
+        })
+    }
+
+    setAll<T>(key: string, data: T[], identifier: (item: T) => string | number): Promise<RedisClient> {
+        return new Promise((resolve, reject) => {
+            if (!Array.isArray(data)) {
+                return reject('Data passed to hmSetAll must be an array')
+            }
+            const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
+            const multi = this.client.multi();
+            const savedKeys = {};
+            for (const item of data) {
+                const itemKey = `${redisKey}:${identifier(item)}`;
+                savedKeys[itemKey] = itemKey;
+                const simplified = JSON.stringify(item);
+                multi.set(itemKey, simplified);
+            }
+            multi.hmset(redisKey, savedKeys);
+            multi.exec((err, saved) => {
+                if (err) {
+                    return reject(err.message);
+                }
+                resolve(this.client);
+                this.client.publish(key, 'message');
+            });
+        });
+    }
+
     keyChange<T>(key: string, listener: (data: T) => void): void {
         const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
         this.subscriber.subscribe(redisKey);
@@ -126,22 +175,23 @@ export class RedisCacheManager {
         return new Promise((resolve, reject) => {
             const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
             const multi = this.client.multi();
-            const parsed = [];
             this.client.hmget(redisKey, (err, data) => {
                 if (err) {
                     return reject(err.message);
                 }
                 for (const key of data) {
-                    multi.hmget(key);
+                    multi.hmget(key, (err, item) => {
+                        if (err) {
+                            return err;
+                        }
+                        return Parser.parseObjectProps(item);
+                    });
                 }
                 multi.exec((err, data) => {
                     if (err) {
                         reject(err.message);
                     }
-                    for (const item of data) {
-                        parsed.push(Parser.parseObjectProps(item));
-                    }
-                    resolve(parsed);
+                    resolve(data);
                 })
             });
         });
@@ -157,6 +207,30 @@ export class RedisCacheManager {
                 }
                 const simplified = await Parser.parseObjectProps(item);
                 resolve(simplified);
+            });
+        });
+    }
+
+    expire(key: string, secondes: number) {
+        const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
+        return this.client.expire(redisKey, secondes);
+    }
+
+    clear(key: string): Promise<null> {
+        const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
+        const multi = this.client.multi();
+        return new Promise((resolve, reject) => {
+            this.client.keys(`${redisKey}:*`, (err, keys) => {
+                if (err) {
+                    return reject(err);
+                }
+                keys.push(redisKey);
+                this.client.del(keys, (delErr, count) => {
+                    if (delErr) {
+                        return reject(delErr);
+                    }
+                    resolve();
+                })
             });
         });
     }
