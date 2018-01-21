@@ -80,7 +80,8 @@ export class RedisCacheManager {
                 for (const singleKey of keys) {
                     multi.get(singleKey, (err, value) => {
                         if (err) {
-                            return reject(err);
+                            // Prevent multi failure for one key
+                            return;
                         }
                         return value;
                     })
@@ -91,7 +92,11 @@ export class RedisCacheManager {
                     }
                     const parsed = [];
                     for (const value of values) {
-                        parsed.push(JSON.parse(value));
+                        try {
+                            parsed.push(JSON.parse(value));
+                        } catch (err) {
+                            // Do nothing with the error - only return correctly parsed items
+                        }
                     }
                     resolve(parsed);
                 })
