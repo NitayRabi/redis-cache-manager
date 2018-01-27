@@ -82,16 +82,45 @@ export class RedisCacheManager {
                         if (err) {
                             return reject(err);
                         }
-                        return JSON.parse(value);
+                        return value;
                     })
                 }
                 multi.exec((err, values) => {
                     if (err) {
                         return reject(err);
                     }
-                    resolve(values);
+                    const parsed = [];
+                    for (const value of values) {
+                        parsed.push(JSON.parse(value));
+                    }
+                    resolve(parsed);
                 })
             })
+        })
+    }
+
+    getByIds<T>(key: string, ids: string[]): Promise<T[]> {
+        const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
+        const multi = this.client.multi();
+        return new Promise((resolve, reject) => {
+                for (const id of ids) {
+                    multi.get(`${redisKey}:${id}`, (err, value) => {
+                        if (err) {
+                            return reject(err);
+                        }
+                        return value;
+                    })
+                }
+                multi.exec((err, values) => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    const parsed = [];
+                    for (const value of values) {
+                        parsed.push(JSON.parse(value));
+                    }
+                    resolve(parsed);
+                })
         })
     }
 
@@ -194,6 +223,31 @@ export class RedisCacheManager {
                     resolve(data);
                 })
             });
+        });
+    }
+
+    hmGetByIds<T>(key: string, ids: string[]): Promise<T[]> {
+        return new Promise((resolve, reject) => {
+            const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
+            const multi = this.client.multi();
+            for (const id of ids) {
+                multi.hmget(`${redisKey}:${id}`, (err, item) => {
+                    if (err) {
+                        return err;
+                    }
+                    return item;
+                });
+            }
+            multi.exec((err, values) => {
+                if (err) {
+                    reject(err.message);
+                }
+                const parsed = [];
+                for (const value of values) {
+                    parsed.push(Parser.parseObjectProps(value));
+                }
+                resolve(parsed);
+            })
         });
     }
 
