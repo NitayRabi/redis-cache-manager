@@ -293,15 +293,25 @@ export class RedisCacheManager {
     }
 
     indexByFields<T>(indexKey: string, data: T[], fieldNames: string[], identifier: (item: T) => string | number): Promise<void> {
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
+            if (!indexKey) {
+                return reject('You must supply an index namespace');
+            }
             if (!data || !Array.isArray(data)) {
                 return reject('You must supply an array of data to be stored as index');
             }
             if (!fieldNames || !Array.isArray(fieldNames)) {
                 return reject('You must supply an array of field-names to be stored as index keys');
             }
+            try {
+                // Remove old relevant indexes
+                await this.clear(`${this.INDEX_KEY}:${indexKey}`);
+            } catch (err) {
+                return reject(err.message);
+            }
             const redisKey = `${this.namespace}:${this.INDEX_KEY}:${indexKey}`;
             let saveMap;
+            const multi = this.client.multi();
             for (const field of fieldNames) {
                 saveMap = data.reduce((result, value) => {
                     if (value) {
@@ -309,15 +319,12 @@ export class RedisCacheManager {
                         result[key] = result[key] && result[key].length ? [...result[key], identifier(value)] : [identifier(value)];
                     }
                     return result;
-                }, {})
-            }
-            const multi = this.client.multi();
-            for (const key in saveMap) {
-                if (saveMap.hasOwnProperty(key)) {
-                    // Clear the key.
-                    multi.del(key);
-                    // Set the new members
-                    multi.sadd(key, saveMap[key]);
+                }, {});
+                for (const key in saveMap) {
+                    if (saveMap.hasOwnProperty(key)) {
+                        // Set the new members
+                        multi.sadd(key, saveMap[key]);
+                    }
                 }
             }
             multi.exec((err, values) => {
@@ -330,13 +337,12 @@ export class RedisCacheManager {
     }
 
     getIndexByFields(indexKey: string, fieldNames: string[]): Promise<{ [key: string]: string[] }> {
-        return new Promise((resolve, reject) => {
+        return new Promise( (resolve, reject) => {
             if (!fieldNames || !Array.isArray(fieldNames)) {
                 return reject('You must supply an array of field-names to get index keys');
             }
-            const multi = this.client.multi();
             const results = {};
-            multi.keys(`${this.namespace}:${this.INDEX_KEY}:${indexKey}*`, (err, indexKeys) => {
+            this.client.keys(`${this.namespace}:${this.INDEX_KEY}:${indexKey}*`, async(err, indexKeys) => {
                 if (err) {
                     reject(err);
                 }
@@ -348,21 +354,17 @@ export class RedisCacheManager {
                         }
                     }
                 }
-                for (const name of setNames) {
-                    multi.smembers(name, (err, set) => {
+                await Promise.all(setNames.map(name => new Promise(resolve => {
+                    this.client.smembers(name, (err, set) => {
                         // We dont want to reject here, only if keys or entire transaction breaks
                         if (!err) {
                             results[name] = set;
                         }
+                        resolve();
                     })
-                }
-            });
-            multi.exec((err, done) => {
-                if (err) {
-                    reject(err.message);
-                }
+                })));
                 resolve(results);
-            })
+            });
         });
     }
 
