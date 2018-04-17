@@ -14,6 +14,9 @@ import { RedisCacheManager } from 'redis-cache-manager';
 const rcm = new RedisCacheManager({namespace: 'my-app-name'});
 ```
 
+## Simple keys
+Simple keys take the entire value given and pass it to JSON.stringify - stored as key - string pair in Redis
+
 ### Set
 
 ```javascript
@@ -34,6 +37,48 @@ const myData = rcm.get('my-key');
 // Use myData
 ```
 
+### SetAll
+
+```javascript
+// The method expects an array of objects, using the callback to create a unique identifier (lodash style).
+// The method creates a list under my-namespace:my-key and hm objects with params stringified in each  my-namespace:my-key:uniqueId
+rcm.setAll('my-key', dataArray, (singleObject) => singleObject.uniqueId)
+            .then(redisClient => {
+                // You can do something with the redis client object
+            })
+            .catch(err => {
+                // Handle error
+            });
+```
+
+### GetAll
+
+```javascript
+// Looks for a list of keys under 'my-namespace:my-key' and gets all objects.
+rcm.getAll('my-key')
+            .then(data => {
+                // You can do something with the data
+            })
+            .catch(err => {
+                // Handle error
+            });
+```
+
+### GetByIds
+
+```javascript
+// Looks for a list of simple keys under 'my-namespace:my-key' and gets all objects matching ids.
+rcm.getByIds('my-key', ['id1', 'id2', 'id3'])
+            .then(data => {
+                // You can do something with the data
+            })
+            .catch(err => {
+                // Handle error
+            });
+```
+
+## HM keys
+Saved as hashes in Redis - none atomic values (arrays, objects etc..) are converted to string using JSON.stringify before stored  
 ### HmSetAll
 
 ```javascript
@@ -77,6 +122,67 @@ rcm.hmGetAll('my-key')
             });
 ```
 
+### HmGetByIds
+
+```javascript
+// Looks for a list of hm keys under 'my-namespace:my-key' and gets all objects matching ids.
+rcm.hmGetByIds('my-key', ['id1', 'id2', 'id3'])
+            .then(data => {
+                // You can do something with the data
+            })
+            .catch(err => {
+                // Handle error
+            });
+```
+
+## Indexes 
+You can set and get indexes (stored as sets) based on field names - can be used for quick filtering of data. 
+
+### IndexByFields
+
+```javascript
+// Sets indexes based on each item of data array and specific fields setting it in redis as namespace:indexes:indexKey:fieldName:someFieldValue : listOfIds
+rcm.indexByFields(indexKey, dataArray, fieldNames, (singleObject) => singleObject.uniqueId)
+            .then(done => {
+                // Indexes set correctly
+            })
+            .catch(err => {
+                // Handle error
+            });
+```
+
+### GetIndexByFields
+
+```javascript
+// Gets all the indexed under a certain indexKey based on field names
+rcm.getIndexByFields(indexKey, fieldNames)
+            .then(data => {
+                // Returns { [indexKey]: listOfIds } you can use for fetching ids or querying DB 
+            })
+            .catch(err => {
+                // Handle error
+            });
+```
+
+### GetAllIndexs
+
+```javascript
+// Sets indexes based on each item of data array and specific fields setting it in redis as namespace:indexes:indexKey:fieldName:someFieldValue : listOfIds
+rcm.getAllIndexes(indexKey)
+            .then(indexes => {
+                // All indexes under key returned as { [key]: listOfIds} 
+                // If no indexKey passed - all indexed will return
+            })
+            .catch(err => {
+                // Handle error
+            });
+```
+
+## Listeners 
+
+Each setting of value in RCM is publishing data (stored in key) on the key name as Redis channel.  
+You can listen to changes on key, or key pattern
+
 ### KeyChange
 
 ```javascript
@@ -94,6 +200,8 @@ rcm.keysChange('my-key', (myNewlySetData) => {
     // Do something with myNewlySetData
 });
 ```
+
+## Closing connection 
 
 ### Quit/Unref
 

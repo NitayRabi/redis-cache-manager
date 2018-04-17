@@ -8,6 +8,7 @@ export interface RCMOptions extends ClientOpts {
 
 export class RedisCacheManager {
 
+    private INDEX_KEY = 'indexes';
     private namespace: string;
     client: RedisClient;
     subscriber: RedisClient;
@@ -127,7 +128,7 @@ export class RedisCacheManager {
     setAll<T>(key: string, data: T[], identifier: (item: T) => string | number): Promise<RedisClient> {
         return new Promise((resolve, reject) => {
             if (!Array.isArray(data)) {
-                return reject('Data passed to hmSetAll must be an array')
+                return reject('Data passed to setAll must be an array')
             }
             const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
             const multi = this.client.multi();
@@ -262,6 +263,104 @@ export class RedisCacheManager {
                 const simplified = await Parser.parseObjectProps(item);
                 resolve(simplified);
             });
+        });
+    }
+
+    getAllIndexes(indexKey?: string): Promise<{ [key: string]: string[]}> {
+        return new Promise((resolve, reject) => {
+            const multi = this.client.multi();
+            const results = {};
+            multi.keys(`${this.namespace}:${this.INDEX_KEY}${indexKey ? `:${indexKey}` : ''}*`, (err, indexKeys) => {
+                if (err) {
+                    reject(err);
+                }
+                for (const key of indexKeys) {
+                    multi.smembers(key, (err, set) => {
+                        // We dont want to reject here, only if keys or entire transaction breaks
+                        if (!err) {
+                            results[key] = set;
+                        }
+                    })
+                }
+            });
+            multi.exec((err, values) => {
+                if (err) {
+                    reject(err.message);
+                }
+                resolve(results);
+            })
+        });
+    }
+
+    indexByFields<T>(indexKey: string, data: T[], fieldNames: string[], identifier: (item: T) => string | number): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (!data || !Array.isArray(data)) {
+                return reject('You must supply an array of data to be stored as index');
+            }
+            if (!fieldNames || !Array.isArray(fieldNames)) {
+                return reject('You must supply an array of field-names to be stored as index keys');
+            }
+            const redisKey = `${this.namespace}:${this.INDEX_KEY}:${indexKey}`;
+            let saveMap;
+            for (const field of fieldNames) {
+                saveMap = data.reduce((result, value) => {
+                    if (value) {
+                        const key = `${redisKey}:${field}:${value[field]}`;
+                        result[key] = result[key] && result[key].length ? [...result[key], identifier(value)] : [identifier(value)];
+                    }
+                    return result;
+                }, {})
+            }
+            const multi = this.client.multi();
+            for (const key of saveMap) {
+                // Clear the key.
+                multi.del(key);
+                // Set the new members
+                multi.sadd(key, saveMap[key]);
+            }
+            multi.exec((err, values) => {
+                if (err) {
+                    reject(err.message);
+                }
+                resolve();
+            })
+        });
+    }
+
+    getIndexByFields(indexKey: string, fieldNames: string[]): Promise<{ [key: string]: string[] }> {
+        return new Promise((resolve, reject) => {
+            if (!fieldNames || !Array.isArray(fieldNames)) {
+                return reject('You must supply an array of field-names to get index keys');
+            }
+            const multi = this.client.multi();
+            const results = {};
+            multi.keys(`${this.namespace}:${this.INDEX_KEY}:${indexKey}*`, (err, indexKeys) => {
+                if (err) {
+                    reject(err);
+                }
+                const setNames = [];
+                for (const field of fieldNames) {
+                    for (const key of indexKeys) {
+                        if (key.includes(field)) {
+                            setNames.push(key);
+                        }
+                    }
+                }
+                for (const name of setNames) {
+                    multi.smembers(name, (err, set) => {
+                        // We dont want to reject here, only if keys or entire transaction breaks
+                        if (!err) {
+                            results[name] = set;
+                        }
+                    })
+                }
+            });
+            multi.exec((err, done) => {
+                if (err) {
+                    reject(err.message);
+                }
+                resolve(results);
+            })
         });
     }
 
