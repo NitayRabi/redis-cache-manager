@@ -80,10 +80,9 @@ export class RedisCacheManager {
             this.client.keys(pattern, (error, keys: string[]) => {
                 for (const singleKey of keys) {
                     multi.get(singleKey, (err, value) => {
-                        if (err) {
-                            return reject(err);
+                        if (!err) {
+                            return value;
                         }
-                        return value;
                     })
                 }
                 multi.exec((err, values) => {
