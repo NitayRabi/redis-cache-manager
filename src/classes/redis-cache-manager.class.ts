@@ -92,7 +92,9 @@ export class RedisCacheManager {
                     }
                     const parsed = [];
                     for (const value of values) {
-                        parsed.push(JSON.parse(value));
+                        try {
+                            parsed.push(JSON.parse(value));
+                        } catch (err) {}
                     }
                     resolve(parsed);
                 })
