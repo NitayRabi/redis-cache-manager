@@ -312,11 +312,13 @@ export class RedisCacheManager {
                 }, {})
             }
             const multi = this.client.multi();
-            for (const key of saveMap) {
-                // Clear the key.
-                multi.del(key);
-                // Set the new members
-                multi.sadd(key, saveMap[key]);
+            for (const key in saveMap) {
+                if (saveMap.hasOwnProperty(key)) {
+                    // Clear the key.
+                    multi.del(key);
+                    // Set the new members
+                    multi.sadd(key, saveMap[key]);
+                }
             }
             multi.exec((err, values) => {
                 if (err) {
