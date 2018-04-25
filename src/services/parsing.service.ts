@@ -8,7 +8,9 @@ export class Parser {
         for (const propName in imute) {
             if (imute.hasOwnProperty(propName)) {
                 const prop = imute[propName];
-                imute[propName] = JSON.stringify(prop);
+                try {
+                    imute[propName] = JSON.stringify(prop);
+                } catch (err) {}
             }
         }
         return imute;
@@ -22,7 +24,10 @@ export class Parser {
         for (const propName in imute) {
             if (imute.hasOwnProperty(propName)) {
                 const prop = imute[propName];
-                imute[propName] = JSON.parse(prop);
+                try {
+                    imute[propName] = JSON.parse(prop);
+
+                } catch (err) {}
             }
         }
         return imute;

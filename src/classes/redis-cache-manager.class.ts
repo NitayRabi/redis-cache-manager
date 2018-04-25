@@ -179,7 +179,11 @@ export class RedisCacheManager {
                 const simplified = Parser.stringfyObjectProps(item);
                 multi.hmset(itemKey, simplified);
             }
-            multi.hmset(redisKey, savedKeys);
+            multi.hmset(redisKey, savedKeys,( err, saved) => {
+                if (err) {
+                    return reject(err.message);
+                }
+            });
             multi.exec((err, saved) => {
                 if (err) {
                     return reject(err.message);
