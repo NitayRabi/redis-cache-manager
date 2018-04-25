@@ -208,23 +208,29 @@ export class RedisCacheManager {
         return new Promise((resolve, reject) => {
             const redisKey = key.split(':')[0] === this.namespace ? key : this.keyGen(key);
             const multi = this.client.multi();
-            this.client.hmget(redisKey, (err, data) => {
+            this.client.hgetall(redisKey, (err, data) => {
                 if (err) {
                     return reject(err.message);
                 }
-                for (const key of data) {
-                    multi.hmget(key, (err, item) => {
-                        if (err) {
-                            return err;
-                        }
-                        return Parser.parseObjectProps(item);
-                    });
+                for (const key in data) {
+                    if (data.hasOwnProperty(key)) {
+                        multi.hgetall(key, (err, item) => {
+                            if (err) {
+                                return err;
+                            }
+                            return Parser.parseObjectProps(item);
+                        });
+                    }
                 }
                 multi.exec((err, data) => {
                     if (err) {
                         reject(err.message);
                     }
-                    resolve(data);
+                    const result = [];
+                    for (const item of data) {
+                        result.push(Parser.parseObjectProps(item));
+                    }
+                    resolve(result);
                 })
             });
         });
