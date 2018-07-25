@@ -18,7 +18,21 @@ export class RedisCacheManager {
         this.namespace = options ? options.namespace || 'RedisCacheManager' : 'RedisCacheManager';
         this.client = redis.createClient(options);
         this.subscriber = redis.createClient(options);
+        this.handleErrors();
         this.initSubscriptions();
+    }
+
+    private handleErrors(): void {
+        if (this.client && this.subscriber) {
+            this.client.on('error', (err) => {
+                console.error(`An error occurred - ${err.message}`);
+                console.error(`Stack - ${err.stack}`);
+            });
+            this.subscriber.on('error', (err) => {
+                console.error(`An error occurred - ${err.message}`);
+                console.error(`Stack - ${err.stack}`);
+            });
+        }
     }
 
     private keyGen(...keys: string[]) {
