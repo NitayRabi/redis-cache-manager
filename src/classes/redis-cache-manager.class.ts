@@ -155,6 +155,7 @@ export class RedisCacheManager {
                 savedKeys[itemKey] = itemKey;
                 const simplified = JSON.stringify(item);
                 multi.set(itemKey, simplified);
+                this.client.publish(itemKey, 'message');
             }
             multi.hmset(redisKey, savedKeys);
             multi.exec((err, saved) => {
@@ -162,7 +163,7 @@ export class RedisCacheManager {
                     return reject(err.message);
                 }
                 resolve(this.client);
-                this.client.publish(key, 'message');
+                this.client.publish(redisKey, 'message');
             });
         });
     }
@@ -192,6 +193,7 @@ export class RedisCacheManager {
                 savedKeys[itemKey] = itemKey;
                 const simplified = Parser.stringfyObjectProps(item);
                 multi.hmset(itemKey, simplified);
+                this.client.publish(itemKey, 'message');
             }
             multi.hmset(redisKey, savedKeys,( err, saved) => {
                 if (err) {
@@ -203,7 +205,7 @@ export class RedisCacheManager {
                     return reject(err.message);
                 }
                 resolve(this.client);
-                this.client.publish(key, 'message');
+                this.client.publish(redisKey, 'message');
             });
         });
     }
