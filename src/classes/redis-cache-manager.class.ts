@@ -46,19 +46,39 @@ export class RedisCacheManager {
     }
 
     private async handleMessageEvent(key: string, message: string): Promise<void> {
-        const data = await this.get(key);
+        let data;
+        try {
+            data = await this.agnosticGet(key);
+        } catch (e) {
+            console.warn(`Redis Cache Manager - Error fetching key - ${key}`, e.stack || e.message || e);
+        }
         if (this.keyListeners[key]) {
             this.keyListeners[key](data);
         }
     };
 
     private async handlePmessageEvent(pattern: string, key: string, message: string): Promise<void> {
-        const data = await this.hmGetOne(key);
+        let data;
+        try {
+            data = await this.agnosticGet(key);
+        } catch (e) {
+            console.warn(`Redis Cache Manager - Error fetching key - ${key}`, e.stack || e.message || e);
+        }
         const callbackKey = pattern.substring(0, pattern.lastIndexOf(':'));
         if (this.keyListeners[callbackKey]) {
             this.keyListeners[callbackKey](data);
         }
     };
+
+    private async agnosticGet(key) {
+        let data;
+        try {
+            data = await this.get(key);
+        } catch (e) {
+            data = await this.hmGetOne(key);
+        }
+        return data;
+    }
 
     set<T>(key: string, obj: any, listener?: (data: T) => void): Promise<RedisClient> {
         // TODO - add list behavior
